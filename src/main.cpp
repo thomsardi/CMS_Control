@@ -3,7 +3,7 @@
 #include <Wire.h>
 #include <registers.h>
 #include <function.h>
-
+#include <EEPROM.h>
 #include <ArduinoJson.h>
 #include <FastLED.h>
 
@@ -17,6 +17,9 @@
 #define BMS_ALERT_PIN 34     // attached to interrupt INT0
 #define BMS_BOOT_PIN 21      // connected to TS1 input
 #define BMS_I2C_ADDRESS 0x08
+
+#define EEPROM_FRAME_NAME_ADDRESS 0x00
+#define EEPROM_CONFIGURED_FLAG 0x20
 
 DynamicJsonDocument docBattery(768);
 CRGB leds[NUM_LEDS];
@@ -58,6 +61,8 @@ int b;
 //int OffBal;
 //int vcell;
 
+String CMSFrameName = "undefined";
+
 void TCA9548A(uint8_t bus) {
   wire.beginTransmission(0x70);  // TCA9548A address
   wire.write(1 << bus);          // send byte to select bus
@@ -96,13 +101,25 @@ void sendInfo(int bid)
   // doc["p_code"] = productionCode;
   // doc["ver"] = firmwareVersion;
   // doc["chip"] = chipType;
+  doc["frame_name"] = CMSFrameName;
   doc["bid"] = bid;
   doc["p_code"] = productionCode;
   doc["ver"] = firmwareVersion;
   doc["chip"] = chipType;
   serializeJson(doc, stringOut);
-  delay(10);
   Serial2.print(stringOut);
+  Serial2.print('\n');
+}
+
+void sendFrameInfo(int bid)
+{
+  String output;
+  DynamicJsonDocument doc(96);
+  doc["bid"] = bid;
+  doc["frame_write"] = 1;
+  doc["status"] = 1;
+  serializeJson(doc, output);
+  Serial2.print(output);
   Serial2.print('\n');
 }
 
@@ -481,6 +498,13 @@ void GetVpack() {
 
 void setup() {
   // put your setup code here, to run once:
+  EEPROM.begin(128);
+
+  if(EEPROM.read(EEPROM_CONFIGURED_FLAG) == 1)
+  {
+    CMSFrameName = EEPROM.readString(EEPROM_FRAME_NAME_ADDRESS);
+  }
+
   Serial.begin(9600);
   Serial2.begin(115200);
   FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
@@ -657,7 +681,7 @@ menu2:
       }
       currTime = millis();
     }
-    DynamicJsonDocument docBattery(768);
+    DynamicJsonDocument docBattery(1024);
     deserializeJson(docBattery, Serial2);
     JsonObject object = docBattery.as<JsonObject>();
     BIDfromEhub = docBattery["BID"];
@@ -677,6 +701,7 @@ menu2:
     int sbq = 0;
     int wbq = 0;
     int info = 0;
+    int frameWrite = 0;
     vcell = docBattery["VCELL"];
     ReadBal = docBattery["RBAL"];
     SetBal = docBattery["SBAL"];
@@ -693,6 +718,7 @@ menu2:
     sbq = docBattery ["SBQ"];
     wbq = docBattery ["WBQ"];
     info = docBattery ["INFO"];
+    frameWrite = docBattery ["frame_write"];
     //    if (digitalRead(tombol) == HIGH) {
     //      Serial2.println("HIGH");
     //      delay(100);
@@ -754,6 +780,18 @@ menu2:
     if (BIDfromEhub == BID && info == 1 ) {
       // String output;
       sendInfo(BIDfromEhub);
+      // Serial2.print(output);
+      // Serial2.print('\n');
+    } 
+
+    if (BIDfromEhub == BID && frameWrite == 1 ) {
+      // String output;
+      // Serial2.println("Frame Write Processing");
+      CMSFrameName = docBattery["frame_name"].as<String>();
+      EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
+      EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
+      sendFrameInfo(BIDfromEhub);
+      EEPROM.commit();
       // Serial2.print(output);
       // Serial2.print('\n');
     } 
