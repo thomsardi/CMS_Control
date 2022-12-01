@@ -269,7 +269,47 @@ void bqWake (int h)
   serializeJson(docBattery, Serial2);
 }
 
+void doBalancing(int cellPos, int switchState)
+{
+  if (cellPos < 5)
+  {
+    BMS[0].setBalanceSwitch(1, cellPos, switchState);
+  }
+  else if (cellPos >= 5 && cellPos < 10)
+  {
+    BMS[0].setBalanceSwitch(2, cellPos - 5, switchState);
+  }
+  else if (cellPos >= 10 && cellPos < 15)
+  {
+    BMS[0].setBalanceSwitch(3, cellPos - 10, switchState);
+  }
 
+  else if (cellPos >= 15 && cellPos < 20)
+  {
+    BMS[1].setBalanceSwitch(1, cellPos - 15, switchState);
+  }
+  else if (cellPos >= 20 && cellPos < 25)
+  {
+    BMS[1].setBalanceSwitch(2, cellPos - 20, switchState);
+  }
+  else if (cellPos >= 25 && cellPos < 30)
+  {
+    BMS[1].setBalanceSwitch(3, cellPos - 25, switchState);
+  }
+
+  else if (cellPos >= 30 && cellPos < 35)
+  {
+    BMS[2].setBalanceSwitch(1, cellPos - 30, switchState);
+  }
+  else if (cellPos >= 35 && cellPos < 40)
+  {
+    BMS[2].setBalanceSwitch(2, cellPos - 35, switchState);
+  }
+  else if (cellPos >= 40)
+  {
+    BMS[2].setBalanceSwitch(3, cellPos - 40, switchState);
+  }
+}
 
 void SetBalancing(int x)
 {
@@ -438,6 +478,25 @@ void SetBalancing(int x)
   Serial2.println(".");
   serializeJson(docBattery, Serial2);
   Serial2.println(".");
+}
+
+void readBalancing(int bid)
+{
+  DynamicJsonDocument doc(768);
+  doc["BID"] = bid;
+  doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
+  doc["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
+  doc["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
+  doc["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
+  doc["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
+  doc["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
+  doc["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
+  doc["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
+  doc["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
+  String output;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
 }
 
 void ReadBalancing ()
@@ -719,6 +778,7 @@ menu2:
     wbq = docBattery ["WBQ"];
     info = docBattery ["INFO"];
     frameWrite = docBattery ["frame_write"];
+    
     //    if (digitalRead(tombol) == HIGH) {
     //      Serial2.println("HIGH");
     //      delay(100);
@@ -744,14 +804,46 @@ menu2:
     }
     
     if ( BIDfromEhub == BID && ReadBal == 1 ) {
-      ReadBalancing();
+      readBalancing(BIDfromEhub);
     }
 
-    if (BIDfromEhub == BID && SetBal > 0 ) {
-      SetBalancing(SetBal);
+    if (BIDfromEhub == BID && SetBal == 1 ) 
+    {
+      if (docBattery.containsKey("cball"))
+      {
+        JsonArray cball = docBattery["cball"];
+        int arrSize = cball.size();
+        if (arrSize >= 45)
+        {
+          for (size_t i = 0; i < arrSize ; i++)
+          {
+            int switchState = cball[i];
+            doBalancing(i, switchState);
+          }
+          for (size_t i = 0; i < 3; i++)
+          {
+            BMS[i].updateBalanceSwitches();
+          }
+          DynamicJsonDocument doc(768);
+          doc["BID"] = BID;
+          doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
+          doc["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
+          doc["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
+          doc["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
+          doc["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
+          doc["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
+          doc["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
+          doc["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
+          doc["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
+          String output;
+          serializeJson(doc, output);
+          Serial2.print(output);
+          Serial2.print('\n');
+        }
+      }
     }
 
-    if (BIDfromEhub == BID && OffBal > 0)
+    if (BIDfromEhub == BID && OffBal == 1)
     {
       OffBalancing(OffBal);
     }
