@@ -226,6 +226,26 @@ void GetTemp()
 
 }
 
+void getBQStatus(int bid)
+{
+  StaticJsonDocument<64> doc;
+  int status = 1;
+  doc["BID"] = bid;
+  for (size_t i = 0; i < 3; i++)
+  {
+    if (BMS[i].isDeviceSleep())
+    {
+      status = 0;
+      break;
+    }
+  }
+  doc["WAKE_STATUS"] = status;
+  String output;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
+}
+
 void GetDeviceStatus()
 {
   DynamicJsonDocument docBattery(768);
@@ -238,6 +258,15 @@ void GetDeviceStatus()
     docBattery["BQ" + String (j) + "STAT"] = a;
     serializeJson(docBattery, Serial2);
   }
+}
+
+void bqShutdown(int bid)
+{
+  for (size_t i = 0; i < 3; i++)
+  {
+    BMS[i].shutdown();
+  }
+  getBQStatus(bid);
 }
 
 void bqShut(int a)
@@ -253,6 +282,15 @@ void bqShut(int a)
 
   docBattery["BQ" + String (c) + "STAT"] = b;
   serializeJson(docBattery, Serial2);
+}
+
+void bqWakeUp(int bid)
+{
+  for (size_t i = 0; i < 3; i++)
+  {
+    BMS[i].wake();
+  }
+  getBQStatus(bid);
 }
 
 void bqWake (int h)
@@ -480,7 +518,7 @@ void SetBalancing(int x)
   Serial2.println(".");
 }
 
-void readBalancing(int bid)
+void readBalancingRequest(int bid)
 {
   DynamicJsonDocument doc(768);
   doc["BID"] = bid;
@@ -499,7 +537,7 @@ void readBalancing(int bid)
   Serial2.print('\n');
 }
 
-void ReadBalancing ()
+void ReadBalancing()
 {
   DynamicJsonDocument docBattery(768);
   docBattery["BID"] = BID;
@@ -518,6 +556,17 @@ void ReadBalancing ()
   Serial2.println(".");
   serializeJson(docBattery, Serial2);
   Serial2.println(".");
+}
+
+void clearBalancingRequest(int bid)
+{
+  BMS[0].clearBalanceSwitches();
+  BMS[1].clearBalanceSwitches();
+  BMS[2].clearBalanceSwitches();
+  BMS[0].updateBalanceSwitches();
+  BMS[1].updateBalanceSwitches();
+  BMS[2].updateBalanceSwitches();
+  readBalancingRequest(bid);
 }
 
 void ClearBalancing()
@@ -804,7 +853,7 @@ menu2:
     }
     
     if ( BIDfromEhub == BID && ReadBal == 1 ) {
-      readBalancing(BIDfromEhub);
+      readBalancingRequest(BIDfromEhub);
     }
 
     if (BIDfromEhub == BID && SetBal == 1 ) 
@@ -849,7 +898,7 @@ menu2:
     }
 
     if (BIDfromEhub == BID && ClearBal == 1 ) {
-      ClearBalancing();
+      clearBalancingRequest(BIDfromEhub);
     }
 
     if ( BIDfromEhub == BID && setled == 1 )
@@ -890,17 +939,20 @@ menu2:
 
     if (BIDfromEhub == BID && rbq == 1)
     {
-      GetDeviceStatus();
+      // GetDeviceStatus();
+      getBQStatus(BIDfromEhub);
     }
 
-    if (BIDfromEhub == BID && sbq > 0)
+    if (BIDfromEhub == BID && sbq == 1)
     {
-      bqShut(sbq);
+      bqShutdown(BIDfromEhub);
+      // bqShut(sbq);
     }
 
-    if (BIDfromEhub == BID && wbq > 0 )
+    if (BIDfromEhub == BID && wbq == 1)
     {
-      bqWake(wbq);
+      bqWakeUp(BIDfromEhub);
+      // bqWake(wbq);
     }
   }
 
