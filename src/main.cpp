@@ -40,7 +40,15 @@ int BID0 = 999;
 int BID = 0 ;
 const int addr = 23;
 const int tombol = 18;
-int buttonState = 0;
+unsigned long lastUpdateTime = 0;
+unsigned long lastRefreshTime = 0;
+bool isIdle = false;
+bool isBrightnessDown = false;
+int brightness = 0;
+int buttonState;
+int lastButtonState = LOW;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;
 //int ReadBal = 0;
 //int SetBal = 0;
 //int ClearBal = 0;
@@ -703,10 +711,12 @@ void loop() {
   ////////////////////////////////////////////////////////////////
 menu:
   while (1) {
+    
     DynamicJsonDocument docBattery(768);
     deserializeJson(docBattery, Serial2);
     JsonObject object = docBattery.as<JsonObject>();
 
+    
     if (!object.isNull()) {
       BIDfromEhub = docBattery["BID"];
       if (BIDfromEhub == BID0  ) {
@@ -726,8 +736,16 @@ menu:
         goto menu2;
       }
     }
-
-    if (digitalRead(addr) == HIGH) {
+    
+    int reading = digitalRead(addr);  
+    
+    if (reading == HIGH) 
+    {
+      for (size_t i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CRGB(0,0,0);
+      }
+      FastLED.show();
       DynamicJsonDocument docBattery(768);
       String output;
       docBattery["BID"] = "?";
@@ -763,12 +781,24 @@ menu1:
       FastLED.setBrightness(20);
       FastLED.show();
       delay(200);
+      // while (digitalRead(addr) == HIGH)
+      // {
+      //   delay(20);
+      // }
+      // lastUpdateTime = millis();
+      // goto menu;
       goto menu2;
     }
   }
 
 menu2:
   while (1) {
+    // int reading = digitalRead(addr);
+    // if (reading == HIGH) 
+    // {
+    //   goto menu;
+    // }
+
     if (isFirstRun)
     {
       for (int i = 0; i < 3; i ++)
@@ -789,6 +819,50 @@ menu2:
       }
       currTime = millis();
     }
+
+    /*
+    if(millis() - lastUpdateTime > 1000)
+    {
+      isIdle = true;
+    }
+    else
+    {
+      isIdle = false;
+      lastRefreshTime = millis();
+      brightness = 20;
+      FastLED.setBrightness(brightness);
+      FastLED.show();
+    }
+
+    if(isIdle)
+    {
+      if(millis() - lastRefreshTime > 20)
+      {
+        if(isBrightnessDown)
+        {
+          brightness -= 2;
+        }
+        else
+        {
+          brightness += 2;
+        }
+        if(brightness >= 20)
+        {
+          isBrightnessDown = true;
+          brightness = 20;
+        }
+        else if (brightness <= 0)
+        {
+          isBrightnessDown = false;
+          brightness = 0;
+        }
+        FastLED.setBrightness(brightness);
+        FastLED.show();
+        lastRefreshTime = millis();
+      }
+    }
+    */
+
     DynamicJsonDocument docBattery(1024);
     deserializeJson(docBattery, Serial2);
     JsonObject object = docBattery.as<JsonObject>();
@@ -839,21 +913,25 @@ menu2:
     if (BIDfromEhub == BID && vcell == 1 ) {
       //      GetVoltage();
       GV();
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && vpack == 1)
     {
       GetVpack();
       //      GetDeviceStatus();
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && temp == 1)
     {
       GetTemp();
+      lastUpdateTime = millis();
     }
     
     if ( BIDfromEhub == BID && ReadBal == 1 ) {
       readBalancingRequest(BIDfromEhub);
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && SetBal == 1 ) 
@@ -890,32 +968,46 @@ menu2:
           Serial2.print('\n');
         }
       }
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && OffBal == 1)
     {
       OffBalancing(OffBal);
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && ClearBal == 1 ) {
       clearBalancingRequest(BIDfromEhub);
+      lastUpdateTime = millis();
     }
 
     if ( BIDfromEhub == BID && setled == 1 )
     {
-      leds[numled] = CRGB(rjson, gjson, bjson);
+      int status = 0;
+      int numOfLed = docBattery["NUM_OF_LED"];
+      JsonArray led_rgb = docBattery["LED_RGB"];
+      if(numOfLed > 0)
+      {
+        for (size_t i = 0; i < numOfLed; i++)
+        {
+          JsonArray rgbValue = led_rgb[i];
+          leds[i] = CRGB(rgbValue[0], rgbValue[1], rgbValue[2]);
+        }
+        status = 1;
+      }
       FastLED.show();
       DynamicJsonDocument doc(64);
       doc["BID"] = BID;
       doc["LEDSET"] = 1;
-      doc["L"] = BID;
-      doc["STATUS"] = 1;
+      doc["STATUS"] = status;
       String output;
       serializeJson(doc, output);
       Serial2.print(output);
       Serial2.print('\n');
 //      serializeJson(docBattery, Serial2);
 //      Serial2.println(output);
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && info == 1 ) {
@@ -923,6 +1015,7 @@ menu2:
       sendInfo(BIDfromEhub);
       // Serial2.print(output);
       // Serial2.print('\n');
+      lastUpdateTime = millis();
     } 
 
     if (BIDfromEhub == BID && frameWrite == 1 ) {
@@ -933,6 +1026,7 @@ menu2:
       EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
       sendFrameInfo(BIDfromEhub);
       EEPROM.commit();
+      lastUpdateTime = millis();
       // Serial2.print(output);
       // Serial2.print('\n');
     } 
@@ -941,17 +1035,20 @@ menu2:
     {
       // GetDeviceStatus();
       getBQStatus(BIDfromEhub);
+      lastUpdateTime = millis();
     }
 
     if (BIDfromEhub == BID && sbq == 1)
     {
       bqShutdown(BIDfromEhub);
+      lastUpdateTime = millis();
       // bqShut(sbq);
     }
 
     if (BIDfromEhub == BID && wbq == 1)
     {
       bqWakeUp(BIDfromEhub);
+      lastUpdateTime = millis();
       // bqWake(wbq);
     }
   }
