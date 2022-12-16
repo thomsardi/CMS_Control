@@ -6,6 +6,7 @@
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 #include <FastLED.h>
+#include <OneButton.h>
 
 #define BQ769x0 1
 
@@ -28,6 +29,16 @@ bool isFirstRun = true;
 unsigned long currTime;
 TwoWire wire = TwoWire(0);
 
+const int addr = 23;
+const int tombol = 18;
+const int restartPin = 34;
+OneButton addrButton(addr, false, false);
+OneButton doorButton(tombol, false, false);
+OneButton restartButton(restartPin, true, true);
+bool isAddrPressed = false;
+bool isDoorPressed = false;
+bool isRestartPressed = false;
+
 const String firmwareVersion = "v0.1";
 const String productionCode = "CMS-32-01";
 const String chipType = "BQ769x0";
@@ -35,11 +46,12 @@ const String chipType = "BQ769x0";
 int sda = 26;
 int scl = 27;
 
+int menu = 1;
+
 int BIDfromEhub;
 int BID0 = 999;
 int BID = 0 ;
-const int addr = 23;
-const int tombol = 18;
+
 unsigned long lastUpdateTime = 0;
 unsigned long lastRefreshTime = 0;
 bool isIdle = false;
@@ -49,27 +61,15 @@ int buttonState;
 int lastButtonState = LOW;
 unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50;
-//int ReadBal = 0;
-//int SetBal = 0;
-//int ClearBal = 0;
 
 int R;
 int g;
 int b;
-//int rjson;
-//int gjson;
-//int bjson;
-//int numled;
-//int setled;
-//int vpack;
-//int temp;
-//int rbq;
-//int wbq;
-//int sbq;
-//int OffBal;
-//int vcell;
+
 
 String CMSFrameName = "undefined";
+
+String serialIn = "";
 
 void TCA9548A(uint8_t bus) {
   wire.beginTransmission(0x70);  // TCA9548A address
@@ -611,6 +611,56 @@ void GetVpack() {
   Serial2.print('\n');
 }
 
+void cmsRestart()
+{
+  for (size_t i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = CRGB::Black;
+  }
+  FastLED.show();
+  delay(1000);
+  ESP.restart();
+}
+
+void addrButtonLongPressStart()
+{
+  // Serial2.print("Long Press Start Detected");
+  // Serial2.print('\n');
+  // leds[0] = CRGB::Yellow;
+  // FastLED.show();
+  isAddrPressed = true;
+}
+
+void addrButtonLongPressStop()
+{
+  // Serial2.print("Long Press Stop Detected");
+  // Serial2.print('\n');
+  // leds[0] = CRGB::Black;
+  // FastLED.show();
+  isAddrPressed = false;
+}
+
+void doorButtonLongPressStart()
+{
+  isDoorPressed = true;
+}
+
+void doorButtonLongPressStop()
+{
+  isDoorPressed = false;
+}
+
+void restartButtonClick()
+{
+  // Serial2.println("Restart");
+  for (size_t i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = CRGB::Black;
+  }
+  FastLED.show();
+  delay(500);
+  ESP.restart();
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -626,14 +676,20 @@ void setup() {
   FastLED.addLeds<WS2812, LED_PIN, GRB>(leds, NUM_LEDS);
   wire.setPins(sda, scl);
   wire.begin();
-  pinMode(addr, INPUT );
-  pinMode(tombol, INPUT );
+
+  addrButton.setPressTicks(200);
+  addrButton.attachLongPressStart(addrButtonLongPressStart);
+  addrButton.attachLongPressStop(addrButtonLongPressStop);
+  doorButton.attachLongPressStart(doorButtonLongPressStart);
+  doorButton.attachLongPressStop(doorButtonLongPressStop);
+  restartButton.attachClick(restartButtonClick);
+
   for (int i = 0; i < 3; i ++)
   {
     BMS[i].setI2C(&wire);
   }
 
-  Scanner();
+  // Scanner();
   int err;
   int lastErr;
   for (int i = 0; i < 3; i ++)
@@ -665,6 +721,7 @@ void setup() {
   // BMS.enableAutoBalancing();
   // BMS.enableDischarging();
 
+  /*
   for (int i = 0; i < 3; i++)
   {
     Serial.println("BMS " + String(i + 1) + " Configuration");
@@ -677,15 +734,23 @@ void setup() {
     Serial.print("SYS_STAT " + String(i + 1) + " : ");
     Serial.println(data, BIN);
   }
-
+  */
+  delay(1000);
+  leds[0] = CRGB::Orange;
+  FastLED.setBrightness(20);
+  FastLED.show();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  Serial.println("Multiple BMS Example");
-  DynamicJsonDocument docBattery(768);
-  deserializeJson(docBattery, Serial2);
-  JsonObject object = docBattery.as<JsonObject>();
+  bool isJsonCompleted = false;
+  addrButton.tick();
+  doorButton.tick();
+  restartButton.tick();
+  // Serial.println("Multiple BMS Example");
+  // DynamicJsonDocument docBattery(768);
+  // deserializeJson(docBattery, Serial2);
+  // JsonObject object = docBattery.as<JsonObject>();
   ///////////////////////////nyalain bms
   if (isFirstRun)
   {
@@ -709,355 +774,317 @@ void loop() {
   }
 
   ////////////////////////////////////////////////////////////////
-menu:
-  while (1) {
-    
-    DynamicJsonDocument docBattery(768);
-    deserializeJson(docBattery, Serial2);
-    JsonObject object = docBattery.as<JsonObject>();
-
-    
-    if (!object.isNull()) {
-      BIDfromEhub = docBattery["BID"];
-      if (BIDfromEhub == BID0  ) {
-        String output;
-        docBattery["BID"] = BID0;
-        // serializeJson(docBattery, Serial2);
-        serializeJson(docBattery, output);
-        Serial2.print(output);
-        Serial2.print('\n');
-        Serial.println("NOBID");
-        goto menu3;
-      }
-
-      if (BIDfromEhub == 619)
-      {
-        // Serial2.println("Secret Code");
-        goto menu2;
-      }
-    }
-    
-    int reading = digitalRead(addr);  
-    
-    if (reading == HIGH) 
+  if (menu == 1)
+  {
+    if (isAddrPressed) 
     {
       for (size_t i = 0; i < NUM_LEDS; i++)
       {
         leds[i] = CRGB(0,0,0);
       }
       FastLED.show();
-      DynamicJsonDocument docBattery(768);
+      StaticJsonDocument<128> doc;
       String output;
-      docBattery["BID"] = "?";
+      doc["BID_STATUS"] = 1;
       // serializeJson(docBattery, Serial2);
-      serializeJson(docBattery, output);
-      Serial2.print(output);
-      Serial2.print('\n');
-      // Serial2.println("GETID");
-      delay(200);
-      goto menu1;
-    }
-  }
-
-menu1:
-  while (1) {
-    DynamicJsonDocument docBattery(768);
-    deserializeJson(docBattery, Serial2);
-    JsonObject object = docBattery.as<JsonObject>();
-    BID = docBattery["BID"];
-    if (BID > 0) {
-      BID = docBattery["BID"];
-      DynamicJsonDocument docBattery(768);
-      String output;
-      docBattery["BID"] = BID;
-      docBattery["RESPON"] = BID;
-      // serializeJson(docBattery, Serial2);
-      serializeJson(docBattery, output);
-      Serial2.print(output);
-      Serial2.print('\n');
-      //      Serial.println(BID);
-      int no = BID - 1;
-      leds[no] = CRGB::LightSeaGreen;
-      FastLED.setBrightness(20);
-      FastLED.show();
-      delay(200);
-      // while (digitalRead(addr) == HIGH)
-      // {
-      //   delay(20);
-      // }
-      // lastUpdateTime = millis();
-      // goto menu;
-      goto menu2;
-    }
-  }
-
-menu2:
-  while (1) {
-    // int reading = digitalRead(addr);
-    // if (reading == HIGH) 
-    // {
-    //   goto menu;
-    // }
-
-    if (isFirstRun)
-    {
-      for (int i = 0; i < 3; i ++)
-      {
-        BMS[i].update();
-      }
-      currTime = millis();
-      isFirstRun = false;
-    }
-
-    ///////////////////////////end of nyalain
-
-    if ((millis() - currTime) > 250 )
-    {
-      for (int i = 0; i < 3; i ++)
-      {
-        BMS[i].update();
-      }
-      currTime = millis();
-    }
-
-    /*
-    if(millis() - lastUpdateTime > 1000)
-    {
-      isIdle = true;
-    }
-    else
-    {
-      isIdle = false;
-      lastRefreshTime = millis();
-      brightness = 20;
-      FastLED.setBrightness(brightness);
-      FastLED.show();
-    }
-
-    if(isIdle)
-    {
-      if(millis() - lastRefreshTime > 20)
-      {
-        if(isBrightnessDown)
-        {
-          brightness -= 2;
-        }
-        else
-        {
-          brightness += 2;
-        }
-        if(brightness >= 20)
-        {
-          isBrightnessDown = true;
-          brightness = 20;
-        }
-        else if (brightness <= 0)
-        {
-          isBrightnessDown = false;
-          brightness = 0;
-        }
-        FastLED.setBrightness(brightness);
-        FastLED.show();
-        lastRefreshTime = millis();
-      }
-    }
-    */
-
-    DynamicJsonDocument docBattery(1024);
-    deserializeJson(docBattery, Serial2);
-    JsonObject object = docBattery.as<JsonObject>();
-    BIDfromEhub = docBattery["BID"];
-    int vcell = 0;
-    int ReadBal = 0;
-    int SetBal = 0;
-    int OffBal = 0;
-    int ClearBal = 0;
-    int setled = 0;
-    int numled = 0;
-    int rjson = 0;
-    int gjson = 0;
-    int bjson = 0;
-    int vpack = 0;
-    int temp = 0;
-    int rbq = 0;
-    int sbq = 0;
-    int wbq = 0;
-    int info = 0;
-    int frameWrite = 0;
-    vcell = docBattery["VCELL"];
-    ReadBal = docBattery["RBAL"];
-    SetBal = docBattery["SBAL"];
-    OffBal = docBattery["OBAL"];
-    ClearBal = docBattery["CBAL"];
-    setled = docBattery["LEDSET"];
-    numled = docBattery["L"];
-    rjson = docBattery["R"];
-    gjson = docBattery["G"];
-    bjson = docBattery["B"];
-    vpack = docBattery ["VPACK"];
-    temp = docBattery ["TEMP"];
-    rbq  = docBattery ["RBQ"];
-    sbq = docBattery ["SBQ"];
-    wbq = docBattery ["WBQ"];
-    info = docBattery ["INFO"];
-    frameWrite = docBattery ["frame_write"];
-    
-    //    if (digitalRead(tombol) == HIGH) {
-    //      Serial2.println("HIGH");
-    //      delay(100);
-    //    }
-    //    if (digitalRead(tombol) == LOW) {
-    //      Serial2.println("LOW");
-    //      delay(100);
-    //    }
-    if (BIDfromEhub == BID && vcell == 1 ) {
-      //      GetVoltage();
-      GV();
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && vpack == 1)
-    {
-      GetVpack();
-      //      GetDeviceStatus();
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && temp == 1)
-    {
-      GetTemp();
-      lastUpdateTime = millis();
-    }
-    
-    if ( BIDfromEhub == BID && ReadBal == 1 ) {
-      readBalancingRequest(BIDfromEhub);
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && SetBal == 1 ) 
-    {
-      if (docBattery.containsKey("cball"))
-      {
-        JsonArray cball = docBattery["cball"];
-        int arrSize = cball.size();
-        if (arrSize >= 45)
-        {
-          for (size_t i = 0; i < arrSize ; i++)
-          {
-            int switchState = cball[i];
-            doBalancing(i, switchState);
-          }
-          for (size_t i = 0; i < 3; i++)
-          {
-            BMS[i].updateBalanceSwitches();
-          }
-          DynamicJsonDocument doc(768);
-          doc["BID"] = BID;
-          doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
-          doc["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
-          doc["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
-          doc["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
-          doc["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
-          doc["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
-          doc["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
-          doc["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
-          doc["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
-          String output;
-          serializeJson(doc, output);
-          Serial2.print(output);
-          Serial2.print('\n');
-        }
-      }
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && OffBal == 1)
-    {
-      OffBalancing(OffBal);
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && ClearBal == 1 ) {
-      clearBalancingRequest(BIDfromEhub);
-      lastUpdateTime = millis();
-    }
-
-    if ( BIDfromEhub == BID && setled == 1 )
-    {
-      int status = 0;
-      int numOfLed = docBattery["NUM_OF_LED"];
-      JsonArray led_rgb = docBattery["LED_RGB"];
-      if(numOfLed > 0)
-      {
-        for (size_t i = 0; i < numOfLed; i++)
-        {
-          JsonArray rgbValue = led_rgb[i];
-          leds[i] = CRGB(rgbValue[0], rgbValue[1], rgbValue[2]);
-        }
-        status = 1;
-      }
-      FastLED.show();
-      DynamicJsonDocument doc(64);
-      doc["BID"] = BID;
-      doc["LEDSET"] = 1;
-      doc["STATUS"] = status;
-      String output;
       serializeJson(doc, output);
       Serial2.print(output);
       Serial2.print('\n');
-//      serializeJson(docBattery, Serial2);
-//      Serial2.println(output);
-      lastUpdateTime = millis();
+      // Serial2.println("GETID");
+      delay(20);
+      isAddrPressed = false;
+      menu = 2;
     }
+    // delay(10);
+  }
 
-    if (BIDfromEhub == BID && info == 1 ) {
-      // String output;
-      sendInfo(BIDfromEhub);
-      // Serial2.print(output);
-      // Serial2.print('\n');
-      lastUpdateTime = millis();
-    } 
-
-    if (BIDfromEhub == BID && frameWrite == 1 ) {
-      // String output;
-      // Serial2.println("Frame Write Processing");
-      CMSFrameName = docBattery["frame_name"].as<String>();
-      EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
-      EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
-      sendFrameInfo(BIDfromEhub);
-      EEPROM.commit();
-      lastUpdateTime = millis();
-      // Serial2.print(output);
-      // Serial2.print('\n');
-    } 
-
-    if (BIDfromEhub == BID && rbq == 1)
+  if (menu == 2)
+  {
+    StaticJsonDocument<128> doc;
+    int timeout = 0;
+    bool isJsonCompleted = false;
+    bool isRetry = true;
+    String serialIn = "";
+    while (isRetry)
     {
-      // GetDeviceStatus();
-      getBQStatus(BIDfromEhub);
-      lastUpdateTime = millis();
-    }
-
-    if (BIDfromEhub == BID && sbq == 1)
-    {
-      bqShutdown(BIDfromEhub);
-      lastUpdateTime = millis();
-      // bqShut(sbq);
-    }
-
-    if (BIDfromEhub == BID && wbq == 1)
-    {
-      bqWakeUp(BIDfromEhub);
-      lastUpdateTime = millis();
-      // bqWake(wbq);
+      
+      if (timeout > 50)
+      {
+        menu = 1;
+        break;
+      }
+      while (Serial2.available())
+      {
+        char in = Serial2.read();
+        if (in != '\n')
+        {
+          serialIn += in;
+        }
+        else
+        {
+          deserializeJson(doc, serialIn);
+          isJsonCompleted = true;
+          serialIn = "";
+        }
+      }
+      
+      if(isJsonCompleted)
+      {
+        if(doc.containsKey("BID_ADDRESS"))
+        {
+          BID = doc["BID_ADDRESS"];
+          if(BID > 0)
+          {
+            StaticJsonDocument<128> docBat;
+            String output;
+            docBat["BID"] = BID;
+            docBat["RESPONSE"] = 1;
+            serializeJson(docBat, output);
+            Serial2.print(output);
+            Serial2.print('\n');
+            delay(20);
+            int no = BID - 1;
+            leds[no] = CRGB::LightSeaGreen;
+            FastLED.setBrightness(20);
+            FastLED.show();
+            menu = 3;
+            isJsonCompleted = false;
+            break;
+          }
+        }
+      }
+      else
+      {
+        timeout++;
+      }
+      delay(10);
     }
   }
 
-menu3:
-  while (1) {
+  if (menu == 3)
+  {
+    while (Serial2.available())
+    {
+      char in = Serial2.read();
+      if (in != '\n')
+      {
+        serialIn += in;
+      }
+      else
+      {
+        isJsonCompleted = true;
+      }
+    }
+    
+    if (isJsonCompleted)
+    {
+      DynamicJsonDocument docBattery(1024);
+      deserializeJson(docBattery, serialIn);
+      JsonObject object = docBattery.as<JsonObject>();
+      BIDfromEhub = docBattery["BID"];
+      int vcell = 0;
+      int ReadBal = 0;
+      int SetBal = 0;
+      int OffBal = 0;
+      int ClearBal = 0;
+      int setled = 0;
+      int numled = 0;
+      int rjson = 0;
+      int gjson = 0;
+      int bjson = 0;
+      int vpack = 0;
+      int temp = 0;
+      int rbq = 0;
+      int sbq = 0;
+      int wbq = 0;
+      int info = 0;
+      int frameWrite = 0;
+      int restart = 0;
+      vcell = docBattery["VCELL"];
+      ReadBal = docBattery["RBAL"];
+      SetBal = docBattery["SBAL"];
+      OffBal = docBattery["OBAL"];
+      ClearBal = docBattery["CBAL"];
+      setled = docBattery["LEDSET"];
+      numled = docBattery["L"];
+      rjson = docBattery["R"];
+      gjson = docBattery["G"];
+      bjson = docBattery["B"];
+      vpack = docBattery ["VPACK"];
+      temp = docBattery ["TEMP"];
+      rbq  = docBattery ["RBQ"];
+      sbq = docBattery ["SBQ"];
+      wbq = docBattery ["WBQ"];
+      info = docBattery ["INFO"];
+      frameWrite = docBattery ["frame_write"];
+      restart = docBattery["RESTART"];
+      
+      //    if (digitalRead(tombol) == HIGH) {
+      //      Serial2.println("HIGH");
+      //      delay(100);
+      //    }
+      //    if (digitalRead(tombol) == LOW) {
+      //      Serial2.println("LOW");
+      //      delay(100);
+      //    }
+      if (BIDfromEhub == BID && vcell == 1 ) {
+        //      GetVoltage();
+        GV();
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && vpack == 1)
+      {
+        GetVpack();
+        //      GetDeviceStatus();
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && temp == 1)
+      {
+        GetTemp();
+        lastUpdateTime = millis();
+      }
+      
+      if ( BIDfromEhub == BID && ReadBal == 1 ) {
+        readBalancingRequest(BIDfromEhub);
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && SetBal == 1 ) 
+      {
+        if (docBattery.containsKey("cball"))
+        {
+          JsonArray cball = docBattery["cball"];
+          int arrSize = cball.size();
+          if (arrSize >= 45)
+          {
+            for (size_t i = 0; i < arrSize ; i++)
+            {
+              int switchState = cball[i];
+              doBalancing(i, switchState);
+            }
+            for (size_t i = 0; i < 3; i++)
+            {
+              BMS[i].updateBalanceSwitches();
+            }
+            DynamicJsonDocument doc(768);
+            doc["BID"] = BID;
+            doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
+            doc["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
+            doc["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
+            doc["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
+            doc["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
+            doc["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
+            doc["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
+            doc["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
+            doc["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
+            String output;
+            serializeJson(doc, output);
+            Serial2.print(output);
+            Serial2.print('\n');
+          }
+        }
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && OffBal == 1)
+      {
+        OffBalancing(OffBal);
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && ClearBal == 1 ) {
+        clearBalancingRequest(BIDfromEhub);
+        lastUpdateTime = millis();
+      }
+
+      if ( BIDfromEhub == BID && setled == 1 )
+      {
+        int status = 0;
+        int numOfLed = docBattery["NUM_OF_LED"];
+        JsonArray led_rgb = docBattery["LED_RGB"];
+        if(numOfLed > 0)
+        {
+          for (size_t i = 0; i < numOfLed; i++)
+          {
+            JsonArray rgbValue = led_rgb[i];
+            leds[i] = CRGB(rgbValue[0], rgbValue[1], rgbValue[2]);
+          }
+          status = 1;
+        }
+        FastLED.show();
+        DynamicJsonDocument doc(64);
+        doc["BID"] = BID;
+        doc["LEDSET"] = 1;
+        doc["STATUS"] = status;
+        String output;
+        serializeJson(doc, output);
+        Serial2.print(output);
+        Serial2.print('\n');
+  //      serializeJson(docBattery, Serial2);
+  //      Serial2.println(output);
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && info == 1 ) {
+        // String output;
+        sendInfo(BIDfromEhub);
+        // Serial2.print(output);
+        // Serial2.print('\n');
+        lastUpdateTime = millis();
+      } 
+
+      if (BIDfromEhub == BID && frameWrite == 1 ) {
+        // String output;
+        // Serial2.println("Frame Write Processing");
+        CMSFrameName = docBattery["frame_name"].as<String>();
+        EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
+        EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
+        sendFrameInfo(BIDfromEhub);
+        EEPROM.commit();
+        lastUpdateTime = millis();
+        // Serial2.print(output);
+        // Serial2.print('\n');
+      } 
+
+      if (BIDfromEhub == BID && rbq == 1)
+      {
+        // GetDeviceStatus();
+        getBQStatus(BIDfromEhub);
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && sbq == 1)
+      {
+        bqShutdown(BIDfromEhub);
+        lastUpdateTime = millis();
+        // bqShut(sbq);
+      }
+
+      if ((BIDfromEhub == BID || BIDfromEhub == 255) && restart == 1)
+      {
+        lastUpdateTime = millis();
+        cmsRestart();
+        // bqShut(sbq);
+      }
+
+      if (BIDfromEhub == BID && wbq == 1)
+      {
+        bqWakeUp(BIDfromEhub);
+        lastUpdateTime = millis();
+        // bqWake(wbq);
+      }
+      isJsonCompleted = false;
+      serialIn = "";
+    }
+    
+  }
+  
+  if (menu == 4)
+  {
     Serial.println("minta No id ulang");
     DynamicJsonDocument docBattery(768);
-
     docBattery["BID"] = "noBID";
     String output;
     // serializeJson(docBattery, Serial2);
@@ -1065,6 +1092,7 @@ menu3:
     Serial2.print(output);
     Serial2.print('\n');
     delay(100);
-    goto menu;
+    menu = 1;
   }
+
 }
