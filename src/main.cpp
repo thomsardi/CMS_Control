@@ -31,7 +31,7 @@ TwoWire wire = TwoWire(0);
 
 const int addr = 23;
 const int tombol = 18;
-const int restartPin = 34;
+const int restartPin = 22;
 OneButton addrButton(addr, false, false);
 OneButton doorButton(tombol, false, false);
 OneButton restartButton(restartPin, true, true);
@@ -622,7 +622,7 @@ void cmsRestart()
   ESP.restart();
 }
 
-void addrButtonLongPressStart()
+void addrButtonClick()
 {
   // Serial2.print("Long Press Start Detected");
   // Serial2.print('\n');
@@ -631,13 +631,22 @@ void addrButtonLongPressStart()
   isAddrPressed = true;
 }
 
+void addrButtonLongPressStart()
+{
+  // Serial2.print("Long Press Start Detected");
+  // Serial2.print('\n');
+  // leds[0] = CRGB::Yellow;
+  // FastLED.show();
+  // isAddrPressed = true;
+}
+
 void addrButtonLongPressStop()
 {
   // Serial2.print("Long Press Stop Detected");
   // Serial2.print('\n');
   // leds[0] = CRGB::Black;
   // FastLED.show();
-  isAddrPressed = false;
+  // isAddrPressed = false;
 }
 
 void doorButtonLongPressStart()
@@ -678,6 +687,7 @@ void setup() {
   wire.begin();
 
   addrButton.setPressTicks(200);
+  addrButton.attachClick(addrButtonClick);
   addrButton.attachLongPressStart(addrButtonLongPressStart);
   addrButton.attachLongPressStop(addrButtonLongPressStop);
   doorButton.attachLongPressStart(doorButtonLongPressStart);
@@ -776,13 +786,13 @@ void loop() {
   ////////////////////////////////////////////////////////////////
   if (menu == 1)
   {
+    leds[0] = CRGB::Orange;
     if (isAddrPressed) 
     {
       for (size_t i = 0; i < NUM_LEDS; i++)
       {
         leds[i] = CRGB(0,0,0);
       }
-      FastLED.show();
       StaticJsonDocument<128> doc;
       String output;
       doc["BID_STATUS"] = 1;
@@ -792,73 +802,87 @@ void loop() {
       Serial2.print('\n');
       // Serial2.println("GETID");
       delay(20);
-      isAddrPressed = false;
+      // isAddrPressed = false;
       menu = 2;
+    }
+    else
+    {
+      while (Serial2.available())
+      {
+        Serial2.read();
+      }
     }
     // delay(10);
   }
 
   if (menu == 2)
   {
-    StaticJsonDocument<128> doc;
     int timeout = 0;
     bool isJsonCompleted = false;
     bool isRetry = true;
     String serialIn = "";
-    while (isRetry)
+    if(isAddrPressed)
     {
-      
-      if (timeout > 50)
+      while (isRetry)
       {
-        menu = 1;
-        break;
-      }
-      while (Serial2.available())
-      {
-        char in = Serial2.read();
-        if (in != '\n')
+        if (timeout > 50)
         {
-          serialIn += in;
+          menu = 1;
+          break;
         }
-        else
+        while (Serial2.available())
         {
-          deserializeJson(doc, serialIn);
-          isJsonCompleted = true;
-          serialIn = "";
-        }
-      }
-      
-      if(isJsonCompleted)
-      {
-        if(doc.containsKey("BID_ADDRESS"))
-        {
-          BID = doc["BID_ADDRESS"];
-          if(BID > 0)
+          char in = Serial2.read();
+          if (in != '\n')
           {
-            StaticJsonDocument<128> docBat;
-            String output;
-            docBat["BID"] = BID;
-            docBat["RESPONSE"] = 1;
-            serializeJson(docBat, output);
-            Serial2.print(output);
-            Serial2.print('\n');
-            delay(20);
-            int no = BID - 1;
-            leds[no] = CRGB::LightSeaGreen;
-            FastLED.setBrightness(20);
-            FastLED.show();
-            menu = 3;
-            isJsonCompleted = false;
+            serialIn += in;
+          }
+          else
+          {
+            isJsonCompleted = true;
             break;
           }
         }
-      }
-      else
-      {
+        
+        if(isJsonCompleted)
+        {
+          StaticJsonDocument<128> doc;
+          deserializeJson(doc, serialIn);
+          if(doc.containsKey("BID_ADDRESS"))
+          {
+            BID = doc["BID_ADDRESS"];
+            if(BID > 0)
+            {
+              StaticJsonDocument<128> docBat;
+              String output;
+              docBat["BID"] = BID;
+              docBat["RESPONSE"] = 1;
+              serializeJson(docBat, output);
+              Serial2.print(output);
+              Serial2.print('\n');
+              delay(20);
+              int no = BID - 1;
+              leds[no] = CRGB::LightSeaGreen;
+              menu = 3;
+              isJsonCompleted = false;
+              break;
+            }
+          }
+          serialIn = "";
+        }
         timeout++;
+        delay(10);
       }
-      delay(10);
+      isAddrPressed = false;
     }
+    else
+    {
+      while (Serial2.available())
+      {
+        Serial2.read();
+      } 
+    }
+    
   }
 
   if (menu == 3)
@@ -873,6 +897,7 @@ void loop() {
       else
       {
         isJsonCompleted = true;
+        break;
       }
     }
     
@@ -1013,7 +1038,6 @@ void loop() {
           }
           status = 1;
         }
-        FastLED.show();
         DynamicJsonDocument doc(64);
         doc["BID"] = BID;
         doc["LEDSET"] = 1;
@@ -1022,8 +1046,6 @@ void loop() {
         serializeJson(doc, output);
         Serial2.print(output);
         Serial2.print('\n');
-  //      serializeJson(docBattery, Serial2);
-  //      Serial2.println(output);
         lastUpdateTime = millis();
       }
 
@@ -1094,5 +1116,7 @@ void loop() {
     delay(100);
     menu = 1;
   }
+  FastLED.setBrightness(20);
+  FastLED.show();
 
 }
