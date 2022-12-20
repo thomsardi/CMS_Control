@@ -903,8 +903,10 @@ void loop() {
     
     if (isJsonCompleted)
     {
+      isJsonCompleted = false;
       DynamicJsonDocument docBattery(1024);
       deserializeJson(docBattery, serialIn);
+      serialIn = "";
       JsonObject object = docBattery.as<JsonObject>();
       BIDfromEhub = docBattery["BID"];
       int vcell = 0;
@@ -1097,8 +1099,6 @@ void loop() {
         lastUpdateTime = millis();
         // bqWake(wbq);
       }
-      isJsonCompleted = false;
-      serialIn = "";
     }
     
   }
