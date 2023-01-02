@@ -19,8 +19,8 @@
 #define BMS_BOOT_PIN 21      // connected to TS1 input
 #define BMS_I2C_ADDRESS 0x08
 
-#define EEPROM_FRAME_NAME_ADDRESS 0x00
-#define EEPROM_CONFIGURED_FLAG 0x20
+#define EEPROM_FRAME_NAME_ADDRESS 0x00 //address 0 (32 characters), reserved 1 slot for null terminator
+#define EEPROM_CONFIGURED_FLAG 0x20 //address 32
 
 DynamicJsonDocument docBattery(768);
 CRGB leds[NUM_LEDS];
@@ -34,7 +34,7 @@ const int tombol = 18;
 const int restartPin = 22;
 OneButton addrButton(addr, false, false);
 OneButton doorButton(tombol, false, false);
-OneButton restartButton(restartPin, true, true);
+// OneButton restartButton(restartPin, true, true);
 bool isAddrPressed = false;
 bool isDoorPressed = false;
 bool isRestartPressed = false;
@@ -248,6 +248,14 @@ void getBQStatus(int bid)
     }
   }
   doc["WAKE_STATUS"] = status;
+  if(isDoorPressed)
+  {
+    doc["DOOR_STATUS"] = 1;
+  }
+  else
+  {
+    doc["DOOR_STATUS"] = 0;
+  }
   String output;
   serializeJson(doc, output);
   Serial2.print(output);
@@ -618,7 +626,7 @@ void cmsRestart()
     leds[i] = CRGB::Black;
   }
   FastLED.show();
-  delay(1000);
+  delay(500);
   ESP.restart();
 }
 
@@ -692,7 +700,8 @@ void setup() {
   addrButton.attachLongPressStop(addrButtonLongPressStop);
   doorButton.attachLongPressStart(doorButtonLongPressStart);
   doorButton.attachLongPressStop(doorButtonLongPressStop);
-  restartButton.attachClick(restartButtonClick);
+  // restartButton.setDebounceTicks(100);
+  // restartButton.attachClick(restartButtonClick);
 
   for (int i = 0; i < 3; i ++)
   {
@@ -756,7 +765,7 @@ void loop() {
   bool isJsonCompleted = false;
   addrButton.tick();
   doorButton.tick();
-  restartButton.tick();
+  // restartButton.tick();
   // Serial.println("Multiple BMS Example");
   // DynamicJsonDocument docBattery(768);
   // deserializeJson(docBattery, Serial2);
@@ -809,7 +818,34 @@ void loop() {
     {
       while (Serial2.available())
       {
-        Serial2.read();
+        char in = Serial2.read();
+        if (in != '\n')
+        {
+          serialIn += in;
+        }
+        else
+        {
+          isJsonCompleted = true;
+          break;
+        }
+      }
+      if(isJsonCompleted)
+      {
+        StaticJsonDocument<128> doc;
+        deserializeJson(doc, serialIn);
+        if(doc.containsKey("RESTART"))
+        {
+          int bid = doc["BID"];
+          int restart = doc["RESTART"];
+          if(bid == 255)
+          {
+            if(restart)
+            {
+              cmsRestart();
+            }
+          }
+        }
+        serialIn = "";
       }
     }
     // delay(10);
@@ -828,6 +864,7 @@ void loop() {
         if (timeout > 50)
         {
           menu = 1;
+          isAddrPressed = false;
           break;
         }
         while (Serial2.available())
@@ -865,7 +902,7 @@ void loop() {
               leds[no] = CRGB::LightSeaGreen;
               menu = 3;
               isJsonCompleted = false;
-              break;
+              isRetry = false;
             }
           }
           serialIn = "";
@@ -879,8 +916,35 @@ void loop() {
     {
       while (Serial2.available())
       {
-        Serial2.read();
-      } 
+        char in = Serial2.read();
+        if (in != '\n')
+        {
+          serialIn += in;
+        }
+        else
+        {
+          isJsonCompleted = true;
+          break;
+        }
+      }
+      if(isJsonCompleted)
+      {
+        StaticJsonDocument<128> doc;
+        deserializeJson(doc, serialIn);
+        if(doc.containsKey("RESTART"))
+        {
+          int bid = doc["BID"];
+          int restart = doc["RESTART"];
+          if(bid == 255)
+          {
+            if(restart)
+            {
+              cmsRestart();
+            }
+          }
+        }
+        serialIn = "";
+      }
     }
     
   }
@@ -1062,11 +1126,17 @@ void loop() {
       if (BIDfromEhub == BID && frameWrite == 1 ) {
         // String output;
         // Serial2.println("Frame Write Processing");
-        CMSFrameName = docBattery["frame_name"].as<String>();
-        EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
-        EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
-        sendFrameInfo(BIDfromEhub);
-        EEPROM.commit();
+        String newCMSFrameName = docBattery["frame_name"].as<String>();
+        if(newCMSFrameName.length() < 31) // reserved 1 character for null terminator
+        {
+          if(newCMSFrameName != CMSFrameName)
+          {
+            EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
+            EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
+            sendFrameInfo(BIDfromEhub);
+            EEPROM.commit();
+          }
+        }
         lastUpdateTime = millis();
         // Serial2.print(output);
         // Serial2.print('\n');
