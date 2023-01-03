@@ -1131,10 +1131,11 @@ void loop() {
         {
           if(newCMSFrameName != CMSFrameName)
           {
-            EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, CMSFrameName);
+            EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, newCMSFrameName);
             EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
-            sendFrameInfo(BIDfromEhub);
             EEPROM.commit();
+            sendFrameInfo(BIDfromEhub);
+            CMSFrameName = newCMSFrameName;
           }
         }
         lastUpdateTime = millis();
