@@ -1,0 +1,10 @@
+{
+    "frame_name": "123abc",
+    "bid": 12,
+    "cms_code": "cms_0001",
+    "base_code": "base_0001",
+    "mcu_code": "mcu_0001",
+    "site_location": "location",
+    "ver": "v0.3",
+    "chip": "bq769x0"
+}

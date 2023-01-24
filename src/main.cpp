@@ -20,7 +20,16 @@
 #define BMS_I2C_ADDRESS 0x08
 
 #define EEPROM_FRAME_NAME_ADDRESS 0x00 //address 0 (32 characters), reserved 1 slot for null terminator
-#define EEPROM_CONFIGURED_FLAG 0x20 //address 32
+#define EEPROM_FRAME_ADDRESS_CONFIGURED_FLAG 0x20 //address 32
+#define EEPROM_CMS_CODE_ADDRESS 0x30 //address 48 (32 characters), reserved 1 slot for null terminator
+#define EEPROM_CMS_ADDRESS_CONFIGURED_FLAG 0x50 //address 80
+#define EEPROM_BASE_CODE_ADDRESS 0x60 //address 96 (32 characters), reserved 1 slot for null terminator
+#define EEPROM_BASE_ADDRESS_CONFIGURED_FLAG 0x80 //address 128
+#define EEPROM_MCU_CODE_ADDRESS 0x70 //address 112 (32 characters), reserved 1 slot for null terminator
+#define EEPROM_MCU_ADDRESS_CONFIGURED_FLAG 0x90 //address 144
+#define EEPROM_SITE_LOCATION_ADDRESS 0xA0 //address 160 (32 characters), reserved 1 slot for null terminator
+#define EEPROM_SITE_LOCATION_CONFIGURED_FLAG 0xC0 //address 192
+
 
 DynamicJsonDocument docBattery(768);
 CRGB leds[NUM_LEDS];
@@ -39,9 +48,14 @@ bool isAddrPressed = false;
 bool isDoorPressed = false;
 bool isRestartPressed = false;
 
-const String firmwareVersion = "v0.1";
-const String productionCode = "CMS-32-01";
-const String chipType = "BQ769x0";
+const String firmwareVersion = "v1.0.1";
+const String chipType = "bq769x0";
+String CMSFrameName = "FRAME-32-NA";
+String cmsCodeName = "CMS-32-NA";
+String baseCodeName = "BASE-32-NA";
+String mcuCodeName = "MCU-32-NA";
+String siteLocationName = "SITE-32-NA";
+
 
 int sda = 26;
 int scl = 27;
@@ -65,9 +79,6 @@ unsigned long debounceDelay = 50;
 int R;
 int g;
 int b;
-
-
-String CMSFrameName = "undefined";
 
 String serialIn = "";
 
@@ -105,13 +116,12 @@ void sendInfo(int bid)
 {
   String stringOut;
   DynamicJsonDocument doc(256);
-  // doc["bid"] = bid;
-  // doc["p_code"] = productionCode;
-  // doc["ver"] = firmwareVersion;
-  // doc["chip"] = chipType;
   doc["frame_name"] = CMSFrameName;
   doc["bid"] = bid;
-  doc["p_code"] = productionCode;
+  doc["cms_code"] = cmsCodeName;
+  doc["base_code"] = baseCodeName;
+  doc["mcu_code"] = mcuCodeName;
+  doc["site_location"] = siteLocationName;
   doc["ver"] = firmwareVersion;
   doc["chip"] = chipType;
   serializeJson(doc, stringOut);
@@ -125,6 +135,54 @@ void sendFrameInfo(int bid)
   DynamicJsonDocument doc(96);
   doc["bid"] = bid;
   doc["frame_write"] = 1;
+  doc["status"] = 1;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
+}
+
+void sendCMSCodeInfo(int bid)
+{
+  String output;
+  DynamicJsonDocument doc(96);
+  doc["bid"] = bid;
+  doc["cms_write"] = 1;
+  doc["status"] = 1;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
+}
+
+void sendBaseCodeInfo(int bid)
+{
+  String output;
+  DynamicJsonDocument doc(96);
+  doc["bid"] = bid;
+  doc["base_write"] = 1;
+  doc["status"] = 1;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
+}
+
+void sendMcuCodeInfo(int bid)
+{
+  String output;
+  DynamicJsonDocument doc(96);
+  doc["bid"] = bid;
+  doc["mcu_write"] = 1;
+  doc["status"] = 1;
+  serializeJson(doc, output);
+  Serial2.print(output);
+  Serial2.print('\n');
+}
+
+void sendSiteLocationInfo(int bid)
+{
+  String output;
+  DynamicJsonDocument doc(96);
+  doc["bid"] = bid;
+  doc["site_write"] = 1;
   doc["status"] = 1;
   serializeJson(doc, output);
   Serial2.print(output);
@@ -150,26 +208,17 @@ void GV()
   JsonArray data = docBattery.createNestedArray("VCELL");
   for (int i = 1; i < 16; i ++)
   {
-    //    DynamicJsonDocument docBattery(768);
     data.add(BMS[0].getCellVoltage(i));
-    //    docBattery["C" + String(i)] = BMS[0].getCellVoltage(i);
-
   }
   for (int i = 1; i < 16; i ++)
   {
     int a = i + 15;
     data.add(BMS[1].getCellVoltage(i));
-    //    DynamicJsonDocument docBattery(768);
-    //    docBattery["C" + String(a)] = BMS[1].getCellVoltage(i);
-
   }
   for (int i = 1; i < 16; i ++)
   {
     int a = i + 30;
     data.add(BMS[2].getCellVoltage(i));
-    //    DynamicJsonDocument docBattery(768);
-    //    docBattery["C" + String(a)] = BMS[2].getCellVoltage(i);
-
   }
 //  Serial.println();
 //  serializeJson(docBattery, Serial2);
@@ -214,19 +263,15 @@ void GetTemp()
   DynamicJsonDocument docBattery(768);
   docBattery["BID"] = BID;
   JsonArray data = docBattery.createNestedArray("TEMP");
-  //  serializeJson(docBattery, Serial2);
   for (int j = 0; j < 3; j ++) {
     for (int i = 1; i < 4; i ++) {
       int a = j + 1;
       int b = i ;
-//      DynamicJsonDocument docBattery(768);
       data.add(BMS[j].getTemperatureDegC(i));
-      //      docBattery["BQ" + String(a) + "T" + String(b)] = BMS[j].getTemperatureDegC(i);
 
     }
   }
   String output;
-//  serializeJson(docBattery, Serial2);
   serializeJson(docBattery, output);
   Serial2.print(output);
   Serial2.print('\n');
@@ -262,20 +307,6 @@ void getBQStatus(int bid)
   Serial2.print('\n');
 }
 
-void GetDeviceStatus()
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-  serializeJson(docBattery, Serial2);
-  for (int j = 0; j < 3; j ++) {
-    int a = BMS[j].isDeviceSleep();
-    Serial2.println(".");
-    DynamicJsonDocument docBattery(768);
-    docBattery["BQ" + String (j) + "STAT"] = a;
-    serializeJson(docBattery, Serial2);
-  }
-}
-
 void bqShutdown(int bid)
 {
   for (size_t i = 0; i < 3; i++)
@@ -283,21 +314,6 @@ void bqShutdown(int bid)
     BMS[i].shutdown();
   }
   getBQStatus(bid);
-}
-
-void bqShut(int a)
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-  serializeJson(docBattery, Serial2);
-  int c = a - 1 ;
-  BMS[c].shutdown();
-  int b = BMS[c].isDeviceSleep();
-  Serial2.println(".");
-
-
-  docBattery["BQ" + String (c) + "STAT"] = b;
-  serializeJson(docBattery, Serial2);
 }
 
 void bqWakeUp(int bid)
@@ -309,21 +325,7 @@ void bqWakeUp(int bid)
   getBQStatus(bid);
 }
 
-void bqWake (int h)
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-
-  int c = h - 1;
-  BMS[c].wake();
-  int a = BMS[c].isDeviceSleep();
-  Serial2.println(".");
-
-  docBattery["BQ" + String (c) + "STAT"] = a;
-  serializeJson(docBattery, Serial2);
-}
-
-void doBalancing(int cellPos, int switchState)
+void setBalancing(int cellPos, int switchState)
 {
   if (cellPos < 5)
   {
@@ -365,175 +367,6 @@ void doBalancing(int cellPos, int switchState)
   }
 }
 
-void SetBalancing(int x)
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-  serializeJson(docBattery, Serial2);
-  //////////////cell 1 - 10
-  if ( x < 11)
-  {
-    if (x < 4)
-    { ////c1 c2 c3
-      int a = x - 1;
-      BMS[0].setBalanceSwitch(1, a , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-    if (x == 4)
-    { ////// c4
-      BMS[0].setBalanceSwitch(1, x , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-    if ( x < 7)
-    { //// c5 c6
-      int a = x - 5;
-      BMS[0].setBalanceSwitch(2, a , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-
-    if ( x == 7)
-    { ///c7
-      BMS[0].setBalanceSwitch(2, 4 , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-
-    if (x < 10)
-    { //// c8 c9
-      int a = x - 8;
-      BMS[0].setBalanceSwitch(3, a , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-
-    if (x == 10)
-    { //// c10
-      BMS[0].setBalanceSwitch(3, 4 , 1);
-      BMS[0].enableBalancingProtection();
-      BMS[0].updateBalanceSwitches();
-    }
-  }
-  /////////////end of cell 1 - 10
-
-  //////////////cell 11 - 20
-  if ( x < 21)
-  {
-    if (x < 14)
-    { ////c11 c12 c13
-      int a = x - 11;
-      BMS[1].setBalanceSwitch(1, a , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-    if (x == 14)
-    { ////// c14
-      BMS[1].setBalanceSwitch(1, 4 , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-    if ( x < 17)
-    { //// c15 c16
-      int a = x - 15;
-      BMS[1].setBalanceSwitch(2, a , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-
-    if ( x == 17)
-    { ///c17
-      BMS[1].setBalanceSwitch(2, 4 , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-
-    if (x < 20)
-    { //// c18 c19
-      int a = x - 18;
-      BMS[1].setBalanceSwitch(3, a , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-
-    if (x == 20)
-    { //// c10
-      BMS[1].setBalanceSwitch(3, 4 , 1);
-      BMS[1].enableBalancingProtection();
-      BMS[1].updateBalanceSwitches();
-    }
-  }
-  /////end of cell 11- 20
-
-  //////cell 21 - 32
-
-  if (x < 33 )
-  {
-    if (x < 24)
-    {
-      int a = x - 21;
-      BMS[2].setBalanceSwitch(1, a , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-    if ( x == 24)
-    {
-      BMS[2].setBalanceSwitch(1, 4 , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-    if ( x < 28 )
-    {
-      int a = x - 25;
-      BMS[2].setBalanceSwitch(2, a , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-    if ( x == 28)
-    {
-      BMS[2].setBalanceSwitch(2, 4 , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-    if ( x < 32)
-    {
-      int a = x - 29;
-      BMS[2].setBalanceSwitch(3, a , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-    if ( x == 32 )
-    {
-      BMS[2].setBalanceSwitch(3, 4 , 1);
-      BMS[2].enableBalancingProtection();
-      BMS[2].updateBalanceSwitches();
-    }
-
-  }
-  ////////end of cell 21 - 32
-
-  docBattery["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
-  docBattery["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
-  docBattery["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
-  Serial2.println(".");
-  docBattery["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
-  docBattery["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
-  docBattery["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
-  Serial2.println(".");
-  docBattery["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
-  docBattery["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
-  docBattery["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
-  Serial2.println(".");
-  serializeJson(docBattery, Serial2);
-  Serial2.println(".");
-}
-
 void readBalancingRequest(int bid)
 {
   DynamicJsonDocument doc(768);
@@ -553,27 +386,6 @@ void readBalancingRequest(int bid)
   Serial2.print('\n');
 }
 
-void ReadBalancing()
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-  serializeJson(docBattery, Serial2);
-  docBattery["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
-  docBattery["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
-  docBattery["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
-  Serial2.println(".");
-  docBattery["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
-  docBattery["RBAL2.2"] = BMS[1].readReg(CELLBAL2);
-  docBattery["RBAL2.3"] = BMS[1].readReg(CELLBAL3);
-  Serial2.println(".");
-  docBattery["RBAL3.1"] = BMS[2].readReg(CELLBAL1);
-  docBattery["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
-  docBattery["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
-  Serial2.println(".");
-  serializeJson(docBattery, Serial2);
-  Serial2.println(".");
-}
-
 void clearBalancingRequest(int bid)
 {
   BMS[0].clearBalanceSwitches();
@@ -585,21 +397,6 @@ void clearBalancingRequest(int bid)
   readBalancingRequest(bid);
 }
 
-void ClearBalancing()
-{
-  DynamicJsonDocument docBattery(768);
-  docBattery["BID"] = BID;
-  serializeJson(docBattery, Serial2);
-  BMS[0].clearBalanceSwitches();
-  BMS[1].clearBalanceSwitches();
-  BMS[2].clearBalanceSwitches();
-  BMS[0].updateBalanceSwitches();
-  BMS[1].updateBalanceSwitches();
-  BMS[2].updateBalanceSwitches();
-  docBattery["CBAL"] = "OK";
-  serializeJson(docBattery, Serial2);
-  Serial2.println(".");
-}
 void GetVpack() {
   DynamicJsonDocument docBattery(768);
   JsonArray data = docBattery.createNestedArray("VPACK");
@@ -609,11 +406,8 @@ void GetVpack() {
   for (int i = 0; i < 3; i ++) {
     int a = i + 1;
     data.add(BMS[i].getBatteryVoltage());
-    //    docBattery["BQ" + String(a)] = BMS[i].getBatteryVoltage();
-    //    serializeJson(docBattery, Serial2);
   }
   String output;
-//  serializeJson(docBattery, Serial2);
   serializeJson(docBattery, output);
   Serial2.print(output);
   Serial2.print('\n');
@@ -681,12 +475,34 @@ void restartButtonClick()
 
 void setup() {
   // put your setup code here, to run once:
-  EEPROM.begin(128);
+  EEPROM.begin(256);
 
-  if(EEPROM.read(EEPROM_CONFIGURED_FLAG) == 1)
+  if(EEPROM.read(EEPROM_FRAME_ADDRESS_CONFIGURED_FLAG) == 1)
   {
     CMSFrameName = EEPROM.readString(EEPROM_FRAME_NAME_ADDRESS);
   }
+
+  if(EEPROM.read(EEPROM_CMS_ADDRESS_CONFIGURED_FLAG) == 1)
+  {
+    cmsCodeName = EEPROM.readString(EEPROM_CMS_CODE_ADDRESS);
+  }
+
+  if(EEPROM.read(EEPROM_BASE_ADDRESS_CONFIGURED_FLAG) == 1)
+  {
+    baseCodeName = EEPROM.readString(EEPROM_BASE_CODE_ADDRESS);
+  }
+
+  if(EEPROM.read(EEPROM_MCU_ADDRESS_CONFIGURED_FLAG) == 1)
+  {
+    mcuCodeName = EEPROM.readString(EEPROM_MCU_CODE_ADDRESS);
+  }
+
+  if(EEPROM.read(EEPROM_SITE_LOCATION_CONFIGURED_FLAG) == 1)
+  {
+    siteLocationName = EEPROM.readString(EEPROM_SITE_LOCATION_ADDRESS);
+  }
+
+
 
   Serial.begin(9600);
   Serial2.begin(115200);
@@ -765,12 +581,7 @@ void loop() {
   bool isJsonCompleted = false;
   addrButton.tick();
   doorButton.tick();
-  // restartButton.tick();
-  // Serial.println("Multiple BMS Example");
-  // DynamicJsonDocument docBattery(768);
-  // deserializeJson(docBattery, Serial2);
-  // JsonObject object = docBattery.as<JsonObject>();
-  ///////////////////////////nyalain bms
+
   if (isFirstRun)
   {
     for (int i = 0; i < 3; i ++)
@@ -781,7 +592,6 @@ void loop() {
     isFirstRun = false;
   }
 
-  ///////////////////////////end of nyalain
 
   if ((millis() - currTime) > 250 )
   {
@@ -792,7 +602,6 @@ void loop() {
     currTime = millis();
   }
 
-  ////////////////////////////////////////////////////////////////
   if (menu == 1)
   {
     leds[0] = CRGB::Orange;
@@ -805,13 +614,10 @@ void loop() {
       StaticJsonDocument<128> doc;
       String output;
       doc["BID_STATUS"] = 1;
-      // serializeJson(docBattery, Serial2);
       serializeJson(doc, output);
       Serial2.print(output);
       Serial2.print('\n');
-      // Serial2.println("GETID");
       delay(20);
-      // isAddrPressed = false;
       menu = 2;
     }
     else
@@ -990,6 +796,10 @@ void loop() {
       int wbq = 0;
       int info = 0;
       int frameWrite = 0;
+      int cmsCodeWrite = 0;
+      int baseCodeWrite = 0;
+      int mcuCodeWrite = 0;
+      int siteLocationWrite = 0;
       int restart = 0;
       vcell = docBattery["VCELL"];
       ReadBal = docBattery["RBAL"];
@@ -1008,18 +818,13 @@ void loop() {
       wbq = docBattery ["WBQ"];
       info = docBattery ["INFO"];
       frameWrite = docBattery ["frame_write"];
+      cmsCodeWrite = docBattery["cms_write"];
+      baseCodeWrite = docBattery["base_write"];
+      mcuCodeWrite = docBattery["mcu_write"];
+      siteLocationWrite = docBattery["site_write"];
       restart = docBattery["RESTART"];
       
-      //    if (digitalRead(tombol) == HIGH) {
-      //      Serial2.println("HIGH");
-      //      delay(100);
-      //    }
-      //    if (digitalRead(tombol) == LOW) {
-      //      Serial2.println("LOW");
-      //      delay(100);
-      //    }
       if (BIDfromEhub == BID && vcell == 1 ) {
-        //      GetVoltage();
         GV();
         lastUpdateTime = millis();
       }
@@ -1027,7 +832,6 @@ void loop() {
       if (BIDfromEhub == BID && vpack == 1)
       {
         GetVpack();
-        //      GetDeviceStatus();
         lastUpdateTime = millis();
       }
 
@@ -1053,7 +857,12 @@ void loop() {
             for (size_t i = 0; i < arrSize ; i++)
             {
               int switchState = cball[i];
-              doBalancing(i, switchState);
+              bool state = false;
+              if (switchState > 0)
+              {
+                state = true;
+              }
+              setBalancing(i, state);
             }
             for (size_t i = 0; i < 3; i++)
             {
@@ -1116,36 +925,92 @@ void loop() {
       }
 
       if (BIDfromEhub == BID && info == 1 ) {
-        // String output;
         sendInfo(BIDfromEhub);
-        // Serial2.print(output);
-        // Serial2.print('\n');
         lastUpdateTime = millis();
       } 
 
       if (BIDfromEhub == BID && frameWrite == 1 ) {
-        // String output;
-        // Serial2.println("Frame Write Processing");
         String newCMSFrameName = docBattery["frame_name"].as<String>();
         if(newCMSFrameName.length() < 31) // reserved 1 character for null terminator
         {
           if(newCMSFrameName != CMSFrameName)
           {
             EEPROM.writeString(EEPROM_FRAME_NAME_ADDRESS, newCMSFrameName);
-            EEPROM.write(EEPROM_CONFIGURED_FLAG, 1);
+            EEPROM.write(EEPROM_FRAME_ADDRESS_CONFIGURED_FLAG, 1);
             EEPROM.commit();
             sendFrameInfo(BIDfromEhub);
             CMSFrameName = newCMSFrameName;
           }
         }
         lastUpdateTime = millis();
-        // Serial2.print(output);
-        // Serial2.print('\n');
-      } 
+      }
+
+      if (BIDfromEhub == BID && cmsCodeWrite == 1 ) {
+        String newCMSCodeName = docBattery["cms_code"].as<String>();
+        if(newCMSCodeName.length() < 31) // reserved 1 character for null terminator
+        {
+          if(newCMSCodeName != cmsCodeName)
+          {
+            EEPROM.writeString(EEPROM_CMS_CODE_ADDRESS, newCMSCodeName);
+            EEPROM.write(EEPROM_CMS_ADDRESS_CONFIGURED_FLAG, 1);
+            EEPROM.commit();
+            sendCMSCodeInfo(BIDfromEhub);
+            cmsCodeName = newCMSCodeName;
+          }
+        }
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && baseCodeWrite == 1 ) {
+        String newBaseCodeName = docBattery["base_code"].as<String>();
+        if(newBaseCodeName.length() < 31) // reserved 1 character for null terminator
+        {
+          if(newBaseCodeName != baseCodeName)
+          {
+            EEPROM.writeString(EEPROM_BASE_CODE_ADDRESS, newBaseCodeName);
+            EEPROM.write(EEPROM_BASE_ADDRESS_CONFIGURED_FLAG, 1);
+            EEPROM.commit();
+            sendBaseCodeInfo(BIDfromEhub);
+            baseCodeName = newBaseCodeName;
+          }
+        }
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && mcuCodeWrite == 1 ) {
+        String newMcuCodeName = docBattery["mcu_code"].as<String>();
+        if(newMcuCodeName.length() < 31) // reserved 1 character for null terminator
+        {
+          if(newMcuCodeName != mcuCodeName)
+          {
+            EEPROM.writeString(EEPROM_MCU_CODE_ADDRESS, newMcuCodeName);
+            EEPROM.write(EEPROM_MCU_ADDRESS_CONFIGURED_FLAG, 1);
+            EEPROM.commit();
+            sendMcuCodeInfo(BIDfromEhub);
+            mcuCodeName = newMcuCodeName;
+          }
+        }
+        lastUpdateTime = millis();
+      }
+
+      if (BIDfromEhub == BID && siteLocationWrite == 1 ) {
+        String newSiteLocationname = docBattery["site_location"].as<String>();
+        if(newSiteLocationname.length() < 31) // reserved 1 character for null terminator
+        {
+          if(newSiteLocationname != siteLocationName)
+          {
+            EEPROM.writeString(EEPROM_SITE_LOCATION_ADDRESS, newSiteLocationname);
+            EEPROM.write(EEPROM_SITE_LOCATION_CONFIGURED_FLAG, 1);
+            EEPROM.commit();
+            sendSiteLocationInfo(BIDfromEhub);
+            siteLocationName = newSiteLocationname;
+          }
+        }
+        lastUpdateTime = millis();
+      }
 
       if (BIDfromEhub == BID && rbq == 1)
       {
-        // GetDeviceStatus();
         getBQStatus(BIDfromEhub);
         lastUpdateTime = millis();
       }
@@ -1154,24 +1019,20 @@ void loop() {
       {
         bqShutdown(BIDfromEhub);
         lastUpdateTime = millis();
-        // bqShut(sbq);
       }
 
       if ((BIDfromEhub == BID || BIDfromEhub == 255) && restart == 1)
       {
         lastUpdateTime = millis();
         cmsRestart();
-        // bqShut(sbq);
       }
 
       if (BIDfromEhub == BID && wbq == 1)
       {
         bqWakeUp(BIDfromEhub);
         lastUpdateTime = millis();
-        // bqWake(wbq);
       }
     }
-    
   }
   
   if (menu == 4)
