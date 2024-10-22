@@ -82,12 +82,18 @@ int b;
 
 String serialIn = "";
 
+/**
+ * Callback to be called everytime bq769x0.update() called, it needs to be registered into bq769x0 class
+ */
 void TCA9548A(uint8_t bus) {
   wire.beginTransmission(0x70);  // TCA9548A address
   wire.write(1 << bus);          // send byte to select bus
   wire.endTransmission();
 }
 
+/**
+ * Function to scan i2c
+ */
 void Scanner ()
 {
   Serial.println ();
@@ -111,7 +117,11 @@ void Scanner ()
   Serial.println (" device(s).");
 }
 
-
+/**
+ * Send info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendInfo(int bid)
 {
   String stringOut;
@@ -129,6 +139,11 @@ void sendInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send frame info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendFrameInfo(int bid)
 {
   String output;
@@ -141,6 +156,11 @@ void sendFrameInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send cms code info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendCMSCodeInfo(int bid)
 {
   String output;
@@ -153,6 +173,11 @@ void sendCMSCodeInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send base code info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendBaseCodeInfo(int bid)
 {
   String output;
@@ -165,6 +190,11 @@ void sendBaseCodeInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send mcu code info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendMcuCodeInfo(int bid)
 {
   String output;
@@ -177,6 +207,11 @@ void sendMcuCodeInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send site location info into upper control
+ * 
+ * @param[in] bid id of device
+ */
 void sendSiteLocationInfo(int bid)
 {
   String output;
@@ -189,6 +224,11 @@ void sendSiteLocationInfo(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Send off balancing response into upper control
+ * 
+ * @param[in] x cell to be off balance
+ */
 void OffBalancing(int x)
 {
 
@@ -197,6 +237,9 @@ void OffBalancing(int x)
   serializeJson(docBattery, Serial2);
 }
 
+/**
+ * Send voltage json response into upper controller
+ */
 void GV()
 {
   String output;
@@ -255,6 +298,9 @@ void GetVoltage ()
   Serial2.println(".");
 }
 
+/**
+ * Send temperature json response into upper controller
+ */
 void GetTemp()
 {
   BMS[0].update();
@@ -279,6 +325,11 @@ void GetTemp()
 
 }
 
+/**
+ * Send BQ status json response into upper controller
+ * 
+ * @param[in] bid id of device
+ */
 void getBQStatus(int bid)
 {
   StaticJsonDocument<64> doc;
@@ -307,6 +358,11 @@ void getBQStatus(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Perform shutdown procedure on BQ chip and Send BQ status json response into upper controller
+ * 
+ * @param[in] bid id of device
+ */
 void bqShutdown(int bid)
 {
   for (size_t i = 0; i < 3; i++)
@@ -316,6 +372,11 @@ void bqShutdown(int bid)
   getBQStatus(bid);
 }
 
+/**
+ * Perform wakeup procedure on BQ chip and Send BQ status json response into upper controller
+ * 
+ * @param[in] bid id of device
+ */
 void bqWakeUp(int bid)
 {
   for (size_t i = 0; i < 3; i++)
@@ -325,6 +386,12 @@ void bqWakeUp(int bid)
   getBQStatus(bid);
 }
 
+/**
+ * Set cell balancing on certain position, either to turn on or off balancing
+ * 
+ * @param[in] cellPos position of cell
+ * @param[in] switchState true to activate balancing, false to deactivate balancing
+ */
 void setBalancing(int cellPos, int switchState)
 {
   if (cellPos < 5)
@@ -367,6 +434,11 @@ void setBalancing(int cellPos, int switchState)
   }
 }
 
+/**
+ * Send balancing cell info response into upper controller
+ * 
+ * @param[in] bid id of device
+ */
 void readBalancingRequest(int bid)
 {
   DynamicJsonDocument doc(768);
@@ -386,6 +458,11 @@ void readBalancingRequest(int bid)
   Serial2.print('\n');
 }
 
+/**
+ * Turn off balancing on all cell and send balancing cell info response into upper controller
+ * 
+ * @param[in] bid id of device
+ */
 void clearBalancingRequest(int bid)
 {
   BMS[0].clearBalanceSwitches();
@@ -397,6 +474,9 @@ void clearBalancingRequest(int bid)
   readBalancingRequest(bid);
 }
 
+/**
+ * Send vpack info response into upper controller
+ */
 void GetVpack() {
   DynamicJsonDocument docBattery(768);
   JsonArray data = docBattery.createNestedArray("VPACK");
@@ -413,6 +493,9 @@ void GetVpack() {
   Serial2.print('\n');
 }
 
+/**
+ * Restart device
+ */
 void cmsRestart()
 {
   for (size_t i = 0; i < NUM_LEDS; i++)
@@ -424,6 +507,9 @@ void cmsRestart()
   ESP.restart();
 }
 
+/**
+ * callback when addr button is clicked
+ */
 void addrButtonClick()
 {
   // Serial2.print("Long Press Start Detected");
@@ -433,6 +519,9 @@ void addrButtonClick()
   isAddrPressed = true;
 }
 
+/**
+ * callback when addr button is held for certain seconds
+ */
 void addrButtonLongPressStart()
 {
   // Serial2.print("Long Press Start Detected");
@@ -442,6 +531,9 @@ void addrButtonLongPressStart()
   // isAddrPressed = true;
 }
 
+/**
+ * callback when addr button is released after being held for certain seconds
+ */
 void addrButtonLongPressStop()
 {
   // Serial2.print("Long Press Stop Detected");
@@ -451,16 +543,25 @@ void addrButtonLongPressStop()
   // isAddrPressed = false;
 }
 
+/**
+ * callback when door button is held for certain seconds
+ */
 void doorButtonLongPressStart()
 {
   isDoorPressed = true;
 }
 
+/**
+ * callback when door button is released after being held for certain seconds
+ */
 void doorButtonLongPressStop()
 {
   isDoorPressed = false;
 }
 
+/**
+ * callback when restart button is clicked
+ */
 void restartButtonClick()
 {
   // Serial2.println("Restart");
@@ -477,9 +578,9 @@ void setup() {
   // put your setup code here, to run once:
   EEPROM.begin(256);
 
-  if(EEPROM.read(EEPROM_FRAME_ADDRESS_CONFIGURED_FLAG) == 1)
+  if(EEPROM.read(EEPROM_FRAME_ADDRESS_CONFIGURED_FLAG) == 1) //check if device frame is already configured
   {
-    CMSFrameName = EEPROM.readString(EEPROM_FRAME_NAME_ADDRESS);
+    CMSFrameName = EEPROM.readString(EEPROM_FRAME_NAME_ADDRESS); //read frame from EEPROM
   }
 
   if(EEPROM.read(EEPROM_CMS_ADDRESS_CONFIGURED_FLAG) == 1)
@@ -521,7 +622,7 @@ void setup() {
 
   for (int i = 0; i < 3; i ++)
   {
-    BMS[i].setI2C(&wire);
+    BMS[i].setI2C(&wire); //pass i2c object into bq769x0 class
   }
 
   // Scanner();
@@ -530,7 +631,7 @@ void setup() {
   for (int i = 0; i < 3; i ++)
   {
 
-    err = BMS[i].begin(BMS_ALERT_PIN, BMS_BOOT_PIN, &TCA9548A);
+    err = BMS[i].begin(BMS_ALERT_PIN, BMS_BOOT_PIN, &TCA9548A); //pass pin (BMS_ALERT_PIN & BMS_BOOT_PIN) and callback (&TCA9548A) into class
     lastErr = err;
     err = lastErr | err;
   }
@@ -539,9 +640,11 @@ void setup() {
   {
     Serial.println("BMS Init Error");
   }
-  BMS[0].setCellConfiguration(BMS[0].CELL_10);
-  BMS[1].setCellConfiguration(BMS[1].CELL_10);
-  BMS[2].setCellConfiguration(BMS[2].CELL_12);
+
+  //consist of 3 IC with 10, 10, 12 cell configuration setup
+  BMS[0].setCellConfiguration(BMS[0].CELL_10); //set cell configuration into 10 CELL
+  BMS[1].setCellConfiguration(BMS[1].CELL_10); //set cell configuration into 10 CELL
+  BMS[2].setCellConfiguration(BMS[2].CELL_12); //set cell configuration into 12 CELL
 
   // BMS.setTemperatureLimits(-20, 45, 0, 45);
   // BMS.setShuntResistorValue(5);
@@ -586,7 +689,7 @@ void loop() {
   {
     for (int i = 0; i < 3; i ++)
     {
-      BMS[i].update();
+      BMS[i].update(); //need to be called periodically to update the value
     }
     currTime = millis();
     isFirstRun = false;
@@ -597,15 +700,15 @@ void loop() {
   {
     for (int i = 0; i < 3; i ++)
     {
-      BMS[i].update();
+      BMS[i].update(); //need to be called periodically to update the value
     }
     currTime = millis();
   }
 
-  if (menu == 1)
+  if (menu == 1) //if no address is assigned
   {
     leds[0] = CRGB::Orange;
-    if (isAddrPressed) 
+    if (isAddrPressed)  //check if address button is pressed and send response
     {
       for (size_t i = 0; i < NUM_LEDS; i++)
       {
@@ -620,9 +723,9 @@ void loop() {
       delay(20);
       menu = 2;
     }
-    else
+    else //if it is not pressed
     {
-      while (Serial2.available())
+      while (Serial2.available()) //read all incoming serial from upper controller
       {
         char in = Serial2.read();
         if (in != '\n')
@@ -635,19 +738,19 @@ void loop() {
           break;
         }
       }
-      if(isJsonCompleted)
+      if(isJsonCompleted) //if serial is in json formatted then process
       {
         StaticJsonDocument<128> doc;
         deserializeJson(doc, serialIn);
-        if(doc.containsKey("RESTART"))
+        if(doc.containsKey("RESTART")) //check if it is command to restart
         {
           int bid = doc["BID"];
           int restart = doc["RESTART"];
-          if(bid == 255)
+          if(bid == 255) //check if it is broadcast
           {
             if(restart)
             {
-              cmsRestart();
+              cmsRestart(); //restart device
             }
           }
         }
@@ -657,7 +760,7 @@ void loop() {
     // delay(10);
   }
 
-  if (menu == 2)
+  if (menu == 2) //perform addressing method
   {
     int timeout = 0;
     bool isJsonCompleted = false;
@@ -673,29 +776,30 @@ void loop() {
           isAddrPressed = false;
           break;
         }
-        while (Serial2.available())
+        while (Serial2.available()) //read all incoming serial
         {
           char in = Serial2.read();
-          if (in != '\n')
+          if (in != '\n') //find termination character, if not the append the serial data
           {
-            serialIn += in;
+            serialIn += in; //append serial data
           }
           else
           {
-            isJsonCompleted = true;
+            isJsonCompleted = true; //termination character found and turn the flag on
             break;
           }
         }
         
-        if(isJsonCompleted)
+        if(isJsonCompleted) //if all serial data is captured
         {
           StaticJsonDocument<128> doc;
           deserializeJson(doc, serialIn);
-          if(doc.containsKey("BID_ADDRESS"))
+          if(doc.containsKey("BID_ADDRESS")) //check if contain key "BID_ADDRESS"
           {
             BID = doc["BID_ADDRESS"];
             if(BID > 0)
             {
+              //send response into upper controller
               StaticJsonDocument<128> docBat;
               String output;
               docBat["BID"] = BID;
@@ -718,9 +822,9 @@ void loop() {
       }
       isAddrPressed = false;
     }
-    else
+    else //if is not from address start block
     {
-      while (Serial2.available())
+      while (Serial2.available()) //wait for all data to be captured
       {
         char in = Serial2.read();
         if (in != '\n')
@@ -733,11 +837,11 @@ void loop() {
           break;
         }
       }
-      if(isJsonCompleted)
+      if(isJsonCompleted) //if all data is captured
       {
         StaticJsonDocument<128> doc;
         deserializeJson(doc, serialIn);
-        if(doc.containsKey("RESTART"))
+        if(doc.containsKey("RESTART")) //check if upper controller issuing restart
         {
           int bid = doc["BID"];
           int restart = doc["RESTART"];
@@ -745,7 +849,7 @@ void loop() {
           {
             if(restart)
             {
-              cmsRestart();
+              cmsRestart(); //perform restart
             }
           }
         }
@@ -755,9 +859,9 @@ void loop() {
     
   }
 
-  if (menu == 3)
+  if (menu == 3) //main task is to perform response for every request from upper controller
   {
-    while (Serial2.available())
+    while (Serial2.available()) //wait for all data to be captured
     {
       char in = Serial2.read();
       if (in != '\n')
@@ -824,28 +928,33 @@ void loop() {
       siteLocationWrite = docBattery["site_write"];
       restart = docBattery["RESTART"];
       
+      //upper controller command to request cell voltage data
       if (BIDfromEhub == BID && vcell == 1 ) {
         GV();
         lastUpdateTime = millis();
       }
 
+      //upper controller command to request pack voltage data
       if (BIDfromEhub == BID && vpack == 1)
       {
         GetVpack();
         lastUpdateTime = millis();
       }
 
+      //upper controller command to request temperature data
       if (BIDfromEhub == BID && temp == 1)
       {
         GetTemp();
         lastUpdateTime = millis();
       }
       
+      //upper controller command to request balancing data
       if ( BIDfromEhub == BID && ReadBal == 1 ) {
         readBalancingRequest(BIDfromEhub);
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set balancing
       if (BIDfromEhub == BID && SetBal == 1 ) 
       {
         if (docBattery.containsKey("cball"))
@@ -862,15 +971,15 @@ void loop() {
               {
                 state = true;
               }
-              setBalancing(i, state);
+              setBalancing(i, state); //set balancing on certain posistion
             }
             for (size_t i = 0; i < 3; i++)
             {
-              BMS[i].updateBalanceSwitches();
+              BMS[i].updateBalanceSwitches(); //update balancing
             }
             DynamicJsonDocument doc(768);
             doc["BID"] = BID;
-            doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1);
+            doc["RBAL1.1"] = BMS[0].readReg(CELLBAL1); //read cell balancing register
             doc["RBAL1.2"] = BMS[0].readReg(CELLBAL2);
             doc["RBAL1.3"] = BMS[0].readReg(CELLBAL3);
             doc["RBAL2.1"] = BMS[1].readReg(CELLBAL1);
@@ -880,7 +989,7 @@ void loop() {
             doc["RBAL3.2"] = BMS[2].readReg(CELLBAL2);
             doc["RBAL3.3"] = BMS[2].readReg(CELLBAL3);
             String output;
-            serializeJson(doc, output);
+            serializeJson(doc, output); //response with balancing info
             Serial2.print(output);
             Serial2.print('\n');
           }
@@ -888,17 +997,20 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to off balancing
       if (BIDfromEhub == BID && OffBal == 1)
       {
         OffBalancing(OffBal);
         lastUpdateTime = millis();
       }
 
+      //upper controller command to clear all balancing
       if (BIDfromEhub == BID && ClearBal == 1 ) {
         clearBalancingRequest(BIDfromEhub);
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set rgb led string
       if ( BIDfromEhub == BID && setled == 1 )
       {
         int status = 0;
@@ -924,11 +1036,13 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to get device info
       if (BIDfromEhub == BID && info == 1 ) {
         sendInfo(BIDfromEhub);
         lastUpdateTime = millis();
       } 
 
+      //upper controller command to set frame name
       if (BIDfromEhub == BID && frameWrite == 1 ) {
         String newCMSFrameName = docBattery["frame_name"].as<String>();
         if(newCMSFrameName.length() < 31) // reserved 1 character for null terminator
@@ -945,6 +1059,7 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set cmd code
       if (BIDfromEhub == BID && cmsCodeWrite == 1 ) {
         String newCMSCodeName = docBattery["cms_code"].as<String>();
         if(newCMSCodeName.length() < 31) // reserved 1 character for null terminator
@@ -961,6 +1076,7 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set base code
       if (BIDfromEhub == BID && baseCodeWrite == 1 ) {
         String newBaseCodeName = docBattery["base_code"].as<String>();
         if(newBaseCodeName.length() < 31) // reserved 1 character for null terminator
@@ -977,6 +1093,7 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set mcu code
       if (BIDfromEhub == BID && mcuCodeWrite == 1 ) {
         String newMcuCodeName = docBattery["mcu_code"].as<String>();
         if(newMcuCodeName.length() < 31) // reserved 1 character for null terminator
@@ -993,6 +1110,7 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to set site location
       if (BIDfromEhub == BID && siteLocationWrite == 1 ) {
         String newSiteLocationname = docBattery["site_location"].as<String>();
         if(newSiteLocationname.length() < 31) // reserved 1 character for null terminator
@@ -1009,24 +1127,28 @@ void loop() {
         lastUpdateTime = millis();
       }
 
+      //upper controller command to read bq status
       if (BIDfromEhub == BID && rbq == 1)
       {
         getBQStatus(BIDfromEhub);
         lastUpdateTime = millis();
       }
 
+      //upper controller command to shutdown bq
       if (BIDfromEhub == BID && sbq == 1)
       {
         bqShutdown(BIDfromEhub);
         lastUpdateTime = millis();
       }
 
+      //upper controller command to restart device
       if ((BIDfromEhub == BID || BIDfromEhub == 255) && restart == 1)
       {
         lastUpdateTime = millis();
         cmsRestart();
       }
 
+      //upper controller command to wake up bq
       if (BIDfromEhub == BID && wbq == 1)
       {
         bqWakeUp(BIDfromEhub);
@@ -1035,7 +1157,7 @@ void loop() {
     }
   }
   
-  if (menu == 4)
+  if (menu == 4) //block executed if addressing is failed
   {
     Serial.println("minta No id ulang");
     DynamicJsonDocument docBattery(768);
